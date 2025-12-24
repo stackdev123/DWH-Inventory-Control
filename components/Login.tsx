@@ -46,8 +46,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-[2.5rem] shadow-2xl">
           <div className="flex flex-col items-center mb-8">
             <div className="bg-gradient-to-br from-red-500 to-red-700 p-4 rounded-3xl shadow-xl shadow-red-500/20 mb-6">
-              <Package className="w-10 h-10 text-white" />
-            </div>
+              <img src="/logo2.png" alt="Logo Perusahaan" className="w-16 h-16 object-contain" />
+</div>
             
             {/* Header Text: Two lines - Red and White as requested */}
             <div className="flex flex-col items-center">

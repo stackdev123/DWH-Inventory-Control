@@ -219,8 +219,8 @@ export const App: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="bg-red-600 p-1.5 rounded-lg text-white shadow-sm">
-              <Package size={20} />
-            </div>
+              <img src="/logo2.png" alt="Logo" className="w-8 h-8 object-contain" />
+</div>
             <div className="flex flex-col">
               <span className="font-black uppercase tracking-tighter text-slate-900 leading-none">Dry Warehouse</span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 leading-none">Management System</span>
