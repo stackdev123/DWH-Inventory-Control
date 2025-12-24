@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { db } from '../services/database';
 import { User } from '../types';
-import { Package, Lock, User as UserIcon, LogIn, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Lock, User as UserIcon, LogIn, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 interface LoginProps {
   onLoginSuccess: (user: User) => void;
@@ -45,11 +45,19 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="w-full max-w-md animate-in fade-in zoom-in duration-500">
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-8 rounded-[2.5rem] shadow-2xl">
           <div className="flex flex-col items-center mb-8">
-            <div className="bg-gradient-to-br from-red-500 to-red-700 p-4 rounded-3xl shadow-xl shadow-red-500/20 mb-6">
-              <Package className="w-10 h-10 text-white" />
+            {/* Logo Image Replacement */}
+            <div className="mb-6">
+              <img 
+                src="logo2.png" 
+                alt="BSI Logo" 
+                className="w-24 h-24 object-contain drop-shadow-[0_0_15px_rgba(220,38,38,0.3)]"
+                onError={(e) => {
+                  // Fallback if image not found
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
             </div>
             
-            {/* Header Text: Two lines - Red and White as requested */}
             <div className="flex flex-col items-center">
               <h1 className="text-xl md:text-2xl font-black text-red-600 uppercase tracking-tighter text-center leading-none">
                 Bounty Segar Indonesia

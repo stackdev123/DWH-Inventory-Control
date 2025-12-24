@@ -218,10 +218,18 @@ export const App: React.FC = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-[100] shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="bg-red-600 p-1.5 rounded-lg text-white shadow-sm">
-              <Package size={20} />
+            {/* Nav Logo Replacement */}
+            <div className="flex items-center">
+              <img 
+                src="logo2.png" 
+                alt="Logo" 
+                className="h-10 w-auto object-contain"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
             </div>
-            <div className="flex flex-col">
+            <div className="flex flex-col ml-1">
               <span className="font-black uppercase tracking-tighter text-slate-900 leading-none">Dry Warehouse</span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 leading-none">Management System</span>
               <span className="text-[9px] font-black text-red-600 uppercase tracking-widest mt-1">Bounty Segar Indonesia</span>
