@@ -1,0 +1,7 @@
+{
+  "name": "Dry Warehouse System V2",
+  "description": "A comprehensive warehouse management system for dry goods with granular item tracking, unique QR code generation per unit.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
