@@ -1,15 +1,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Product, StockItem, LogEntry, ItemStatus } from './types';
-import { db, supabase } from './services/database';
-import Login from './components/Login';
-import Transactions from './components/Transactions';
-import Inventory from './components/Inventory';
-import MasterData from './components/MasterData';
-import History from './components/History';
-import About from './components/About';
-import LabelGenerator from './components/LabelGenerator';
-import Dashboard from './components/Dashboard';
+import { User, Product, StockItem, LogEntry, ItemStatus } from './types.ts';
+import { db, supabase } from './services/database.ts';
+import Login from './components/Login.tsx';
+import Transactions from './components/Transactions.tsx';
+import Inventory from './components/Inventory.tsx';
+import MasterData from './components/MasterData.tsx';
+import History from './components/History.tsx';
+import About from './components/About.tsx';
+import LabelGenerator from './components/LabelGenerator.tsx';
+import Dashboard from './components/Dashboard.tsx';
 import { 
   ArrowLeftRight,
   Package, 
@@ -127,7 +127,6 @@ export const App: React.FC = () => {
         }
       });
 
-      // Simpan perubahan ke StockItem, sertakan note yang diinput saat inbound
       await db.addStockItems(items.map(i => ({ 
         ...i, 
         status: ItemStatus.IN_STOCK, 

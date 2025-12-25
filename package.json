@@ -3,7 +3,7 @@
   "name": "dry-warehouse-system",
   "version": "4.2.0",
   "private": true,
-  "description": "Dry Warehouse Management System with Gemini AI Integration",
+  "description": "Standard Dry Warehouse Management System",
   "type": "module",
   "scripts": {
     "dev": "npx serve .",
