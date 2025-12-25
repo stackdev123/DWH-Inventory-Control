@@ -28,8 +28,6 @@ const Outbound: React.FC<OutboundProps> = ({ products, stock, onOutbound, onRefr
   const [isProcessing, setIsProcessing] = useState(false);
 
   const [pendingQueue, setPendingQueue] = useState<OutboundRequest[]>([]);
-  const [scannedReviewList, setScannedReviewList] = useState<OutboundRequest[]>([]);
-  const [showScannedReview, setShowScannedReview] = useState(false);
   
   const [showReviewModal, setShowReviewModal] = useState(false);
   
@@ -38,6 +36,19 @@ const Outbound: React.FC<OutboundProps> = ({ products, stock, onOutbound, onRefr
 
   const sanitizeId = (id: string) => id.trim().replace(/[^a-zA-Z0-9-&]/g, '').toUpperCase();
   const getProductUnit = (id: string) => products.find(p => p.id === id)?.unit || '';
+
+  const formatDateReadable = (dateStr: string) => {
+    if (!dateStr || dateStr === 'System' || dateStr === 'Migration') return dateStr;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
+  };
 
   const getAvailableItems = (productId: string) => {
     const prod = products.find(p => p.id === productId);
@@ -67,7 +78,6 @@ const Outbound: React.FC<OutboundProps> = ({ products, stock, onOutbound, onRefr
       const item = stock.find(s => sanitizeId(s.uniqueId) === cleanCode && String(s.status) === String(ItemStatus.IN_STOCK));
       if (item) {
         if (!pendingQueue.some(q => q.item.uniqueId === item.uniqueId) && !itemsToAdd.some(q => q.item.uniqueId === item.uniqueId)) {
-          // Set default to 0 as requested for better manual control
           itemsToAdd.push({ item, qtyToTake: 0, recipient: '', note: '' });
         }
       } else {
@@ -77,12 +87,7 @@ const Outbound: React.FC<OutboundProps> = ({ products, stock, onOutbound, onRefr
 
     if (missingCodes.length > 0) setError(`${missingCodes.length} kode tidak tersedia stoknya.`);
     if (itemsToAdd.length > 0) {
-      if (Array.isArray(input) || itemsToAdd.length > 1) {
-        setScannedReviewList(itemsToAdd);
-        setShowScannedReview(true);
-      } else {
-        setPendingQueue(prev => [...itemsToAdd, ...prev]);
-      }
+      setPendingQueue(prev => [...itemsToAdd, ...prev]);
     }
     setScanInput('');
   };
@@ -149,7 +154,10 @@ const Outbound: React.FC<OutboundProps> = ({ products, stock, onOutbound, onRefr
                     <div className="flex-1">
                         <SearchableSelect 
                             placeholder="Pilih Batch..." 
-                            options={getAvailableItems(selectedProductId).map(item => ({ id: item.uniqueId, name: `${item.batchCode} (${item.quantity})` }))} 
+                            options={getAvailableItems(selectedProductId).map(item => ({ 
+                              id: item.uniqueId, 
+                              name: `${item.batchCode} (${item.quantity}) • In: ${formatDateReadable(item.arrivalDate)} • Exp: ${item.expiryDate ? formatDateReadable(item.expiryDate) : 'N/A'}` 
+                            }))} 
                             value={selectedBatchId} 
                             onChange={setSelectedBatchId} 
                         />
@@ -203,7 +211,6 @@ const Outbound: React.FC<OutboundProps> = ({ products, stock, onOutbound, onRefr
                               onChange={(e) => updateItemInQueue(req.item.uniqueId, { note: e.target.value })}
                               className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-bold outline-none"
                             />
-                            {/* FIXED QTY BOX LAYOUT */}
                             <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-100 rounded-xl shrink-0 min-w-[120px]">
                                 <span className="text-[8px] font-black text-red-400 uppercase">QTY:</span>
                                 <div className="flex items-center gap-1 min-w-0">

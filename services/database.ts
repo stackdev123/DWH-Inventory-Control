@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { StockItem, LogEntry, Product, InventorySummary, User, ItemStatus, OpnameRequest } from '../types';
 
@@ -159,7 +158,8 @@ export const db = {
       supplier: s.supplier,
       status: s.status as ItemStatus,
       createdAt: s.created_at_ts,
-      quantity: s.quantity
+      quantity: s.quantity,
+      note: s.note // Map kolom note dari database
     }));
   },
 
@@ -171,6 +171,7 @@ export const db = {
       .limit(30);
 
     if (error) return [];
+    // Correct mapping from raw database rows to camelCase LogEntry interface
     return data.map(l => ({
       id: l.id,
       type: l.type,
@@ -179,7 +180,7 @@ export const db = {
       timestamp: l.timestamp,
       recipient: l.recipient,
       note: l.note,
-      quantity_change: Number(l.quantity_change) || 0,
+      quantityChange: Number(l.quantity_change) || 0,
       user: l.user
     }));
   },
@@ -200,7 +201,8 @@ export const db = {
             status: item.status, 
             arrival_date: item.arrivalDate,
             expiry_date: item.expiryDate || null,
-            supplier: item.supplier
+            supplier: item.supplier,
+            note: item.note || null // Update keterangan jika ada
           })
           .eq('unique_id', item.uniqueId);
       } else {
@@ -214,7 +216,8 @@ export const db = {
           supplier: item.supplier,
           status: item.status,
           created_at_ts: item.createdAt,
-          quantity: item.quantity
+          quantity: item.quantity,
+          note: item.note || null // Simpan keterangan saat insert baru
         };
         await supabase.from('stock_items').insert(payload);
       }
@@ -226,7 +229,8 @@ export const db = {
       .from('stock_items')
       .update({ 
         status: item.status,
-        quantity: item.quantity
+        quantity: item.quantity,
+        note: item.note // Pastikan note juga bisa diupdate
       })
       .eq('unique_id', item.uniqueId);
     if (error) throw error;
@@ -237,6 +241,7 @@ export const db = {
       id: l.id,
       type: l.type,
       stock_item_id: l.stockItemId,
+      // Fix line 244: Map from camelCase LogEntry.productName to database column product_name
       product_name: l.productName,
       timestamp: l.timestamp,
       recipient: l.recipient,
@@ -272,9 +277,9 @@ export const db = {
       variance: r.variance,
       note: r.note,
       isInitialStockAdjustment: r.is_initial_adj,
-      reference_date: r.reference_date,
-      submitted_by: r.submitted_by,
-      submitted_at: r.submitted_at,
+      referenceDate: r.reference_date,
+      submittedBy: r.submitted_by,
+      submittedAt: r.submitted_at,
       status: r.status
     }));
   },

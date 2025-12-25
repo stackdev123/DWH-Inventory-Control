@@ -5,7 +5,7 @@ import {
   Search, Package, Box, AlertTriangle, RefreshCw, X, Tag, FileSpreadsheet, 
   ChevronRight, Info, ArrowUpRight, ArrowDownLeft, History as HistoryIcon, 
   Printer, AlertCircle, Layers, ShieldCheck, Eye, Settings2, Plus, Minus, 
-  ScanLine, User as UserIcon, Activity, Truck, Database, Clock, Calendar, Hash
+  ScanLine, User as UserIcon, Activity, Truck, Database, Clock, Calendar, Hash, FileText
 } from 'lucide-react';
 import StockOpname from './StockOpname';
 import MasterData from './MasterData';
@@ -46,6 +46,27 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
       setDetailTab('batches');
     }
   }, [selectedProduct]);
+
+  const formatDateReadable = (dateStr: string) => {
+    if (!dateStr || dateStr === 'System' || dateStr === 'Migration') return dateStr;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatDateTimeFull = (ts: any) => {
+    if (!ts) return "-";
+    const d = new Date(Number(ts));
+    const day = String(d.getDate()).padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    return `${day} ${months[d.getMonth()]} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
 
   const handleScanCheck = (id: string | string[]) => {
     const uniqueId = Array.isArray(id) ? id[0] : id;
@@ -185,24 +206,15 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
     return { label: 'AMAN', color: 'bg-emerald-500', text: 'text-white' };
   };
 
-  const formatDateTimeFull = (ts: any) => {
-    if (!ts) return "-";
-    const d = new Date(Number(ts));
-    const day = String(d.getDate()).padStart(2, '0');
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    return `${day} ${months[d.getMonth()]} ${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  };
-
   return (
     <div className="space-y-4 relative">
       {showScanner && (
         <CameraScanner onScan={handleScanCheck} onClose={() => setShowScanner(false)} stockItems={inventory} products={products} />
       )}
 
-      {/* Modal Cek Detail Stiker */}
       {scannedUnit && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
               <div className="p-5 bg-slate-900 text-white relative">
                  <button onClick={() => setScannedUnit(null)} className="absolute top-5 right-5 p-2 bg-white/10 rounded-full hover:bg-white/20"><X size={20} /></button>
                  <div className="flex items-center gap-3 mb-4">
@@ -226,15 +238,25 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
                     </div>
                     <div className="bg-white/5 p-2 rounded-xl">
                        <span className="text-[6px] font-black text-slate-500 uppercase block">In</span>
-                       <span className="text-[9px] font-black text-white">{scannedUnit.item.arrivalDate || '-'}</span>
+                       <span className="text-[9px] font-black text-white">{formatDateReadable(scannedUnit.item.arrivalDate) || '-'}</span>
                     </div>
                     <div className="bg-white/5 p-2 rounded-xl">
                        <span className="text-[6px] font-black text-slate-500 uppercase block">Exp</span>
-                       <span className="text-[9px] font-black text-white truncate">{scannedUnit.item.expiryDate || 'N/A'}</span>
+                       <span className="text-[9px] font-black text-white truncate">{scannedUnit.item.expiryDate ? formatDateReadable(scannedUnit.item.expiryDate) : 'N/A'}</span>
                     </div>
                  </div>
               </div>
               <div className="flex-1 overflow-y-auto p-5 bg-slate-50">
+                 {scannedUnit.item.note && (
+                    <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-start gap-3">
+                       <FileText size={18} className="text-blue-500 mt-0.5" />
+                       <div>
+                          <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest block mb-1">Keterangan Unit</span>
+                          <p className="text-[11px] font-bold text-blue-700 italic leading-snug">{scannedUnit.item.note}</p>
+                       </div>
+                    </div>
+                 )}
+
                  <h4 className="text-[8px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2 mb-4"><Activity size={12} className="text-red-600" /> Mutasi Unit</h4>
                  <div className="space-y-4 relative ml-1 border-l-2 border-slate-200 pl-4">
                     {scannedUnit.logs.length > 0 ? scannedUnit.logs.map((log) => (
@@ -262,7 +284,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
         </div>
       )}
 
-      {/* Main Control Panel */}
       <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-4 md:p-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3 w-full md:w-auto">
@@ -344,11 +365,9 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
         </div>
       </div>
 
-      {/* MODAL DETAIL PRODUK - COMPACT OPTIMIZATION */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[300] flex items-end md:items-center justify-center bg-slate-900/40 backdrop-blur-[2px] p-0 md:p-4">
-          <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] shadow-2xl w-full max-w-xl flex flex-col max-h-[85vh] border border-slate-100 overflow-hidden animate-in slide-in-from-bottom duration-300">
-            {/* Modal Header */}
+          <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] shadow-2xl w-full max-w-5xl flex flex-col max-h-[85vh] border border-slate-100 overflow-hidden animate-in slide-in-from-bottom duration-300">
             <div className="p-4 flex justify-between items-center border-b border-slate-100 bg-white sticky top-0 z-10">
               <div className="flex gap-3 items-center">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-lg ${getStockStatus(selectedProduct).color}`}><Package size={18} /></div>
@@ -363,7 +382,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
               <button onClick={() => setSelectedProduct(null)} className="p-2 text-slate-400 hover:text-red-600 bg-slate-50 rounded-full transition-colors"><X size={18} /></button>
             </div>
 
-            {/* Modal Content Tabs */}
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
                 <div className="bg-white p-4">
                   <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
@@ -394,7 +412,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
                            </div>
                         </div>
 
-                        {/* COMPACT METADATA STRIP */}
                         <div className="flex items-center gap-3 py-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
                            <div className="flex items-center gap-1 min-w-0">
                               <Truck size={10} className="text-slate-300" />
@@ -403,14 +420,21 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
                            <div className="w-px h-3 bg-slate-200"></div>
                            <div className="flex items-center gap-1 whitespace-nowrap">
                               <Calendar size={10} className="text-slate-300" />
-                              <span className="text-[8px] font-black text-slate-500 uppercase">{item.arrivalDate || '-'}</span>
+                              <span className="text-[8px] font-black text-slate-500 uppercase">{formatDateReadable(item.arrivalDate) || '-'}</span>
                            </div>
                            <div className="w-px h-3 bg-slate-200"></div>
                            <div className="flex items-center gap-1 whitespace-nowrap min-w-0">
                               <Clock size={10} className="text-slate-300" />
-                              <span className={`text-[8px] font-black uppercase ${item.expiryDate ? 'text-red-600' : 'text-slate-400'}`}>{item.expiryDate || 'NO EXP'}</span>
+                              <span className={`text-[8px] font-black uppercase ${item.expiryDate ? 'text-red-600' : 'text-slate-400'}`}>{item.expiryDate ? formatDateReadable(item.expiryDate) : 'NO EXP'}</span>
                            </div>
                         </div>
+
+                        {item.note && (
+                           <div className="flex items-center gap-2 px-3 py-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mt-1">
+                              <FileText size={10} className="text-blue-400" />
+                              <span className="text-[8px] font-bold text-blue-600 italic truncate">{item.note}</span>
+                           </div>
+                        )}
                       </div>
                     )) : (
                       <div className="py-12 text-center text-slate-300 italic text-[9px] font-black uppercase flex flex-col items-center gap-2">
@@ -451,7 +475,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
                              </div>
                              <div className="flex items-center gap-1 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
                                 <Clock size={10} className="text-slate-300" />
-                                <span className="text-[7px] font-black text-slate-500 uppercase">{itemInfo?.expiryDate || 'NO EXP'}</span>
+                                <span className="text-[7px] font-black text-slate-500 uppercase">{itemInfo?.expiryDate ? formatDateReadable(itemInfo.expiryDate) : 'NO EXP'}</span>
                              </div>
                           </div>
 
@@ -474,7 +498,6 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
                 )}
                 </div>
 
-                {/* Admin Section - Also Compacted */}
                 {currentUser.role === 'Admin' && (
                   <div className="m-4 p-4 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
                     <h4 className="text-[8px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">

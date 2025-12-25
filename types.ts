@@ -52,7 +52,7 @@ export interface StockItem {
   status: ItemStatus;
   createdAt: number;
   quantity: number;
-  // Flag to identify items that represent a system-wide legacy or unlabeled balance
+  note?: string; // Field baru untuk keterangan tambahan
   isUnlabeled?: boolean;
 }
 

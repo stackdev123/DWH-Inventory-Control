@@ -12,14 +12,16 @@ interface LabelPreviewProps {
 const LabelPreview: React.FC<LabelPreviewProps> = ({ data, scale = 1, className = '' }) => {
   // Dimensions: 10cm x 7cm
   
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "---";
+  const formatDateReadable = (dateStr: string) => {
+    if (!dateStr || dateStr === 'System' || dateStr === 'Migration') return dateStr;
     try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return "---";
-      return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
     } catch {
-      return dateString;
+      return dateStr;
     }
   };
   
@@ -86,14 +88,14 @@ const LabelPreview: React.FC<LabelPreviewProps> = ({ data, scale = 1, className 
               <tr style={{ height: '25%' }}>
                 <td className="align-middle text-slate-800 text-[14px]">In</td>
                 <td className="align-middle text-center text-[14px]">:</td>
-                <td className="align-middle text-[14px] text-black">{formatDate(data.arrivalDate)}</td>
+                <td className="align-middle text-[14px] text-black">{formatDateReadable(data.arrivalDate)}</td>
               </tr>
 
               {/* Expiry */}
               <tr style={{ height: '25%' }}>
                 <td className="align-middle text-slate-800 text-[14px]">Exp</td>
                 <td className="align-middle text-center text-[14px]">:</td>
-                <td className="align-middle text-[14px] text-black">{data.expiryDate ? formatDate(data.expiryDate) : "-"}</td>
+                <td className="align-middle text-[14px] text-black">{data.expiryDate ? formatDateReadable(data.expiryDate) : "-"}</td>
               </tr>
             </tbody>
           </table>

@@ -108,7 +108,7 @@ export const App: React.FC = () => {
           stockItemId: item.uniqueId,
           productName: item.productName,
           timestamp: Date.now(),
-          note: isMigration ? `Migrasi: ${note || 'Penerimaan'}` : (note || 'Penerimaan Barang'),
+          note: isMigration ? `Migrasi: ${note || 'Penerimaan'}` : (item.note || note || 'Penerimaan Barang'),
           quantityChange: item.quantity,
           user: currentUser.username
         });
@@ -127,7 +127,13 @@ export const App: React.FC = () => {
         }
       });
 
-      await db.addStockItems(items.map(i => ({ ...i, status: ItemStatus.IN_STOCK })));      await db.addLogEntries(logEntries);
+      // Simpan perubahan ke StockItem, sertakan note yang diinput saat inbound
+      await db.addStockItems(items.map(i => ({ 
+        ...i, 
+        status: ItemStatus.IN_STOCK, 
+        note: i.note || note 
+      })));      
+      await db.addLogEntries(logEntries);
       await loadAllData(true);
     } catch (error) {
       alert("Gagal melakukan inbound.");
@@ -218,7 +224,6 @@ export const App: React.FC = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-[100] shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            {/* Nav Logo Replacement */}
             <div className="flex items-center">
               <img 
                 src="logo2.png" 

@@ -50,7 +50,6 @@ const LabelGenerator: React.FC<LabelGeneratorProps> = ({ products, stock, onAddS
     const dateInStr = arrivalDate.replace(/-/g, '');
     const dateExpStr = expiryDate ? expiryDate.replace(/-/g, '') : 'NOEXP';
     
-    // Auto generate if empty with the new DDMMYYDP&XXX format
     const finalBatchCode = batchCode.trim() || generateAutoBatch();
     const cleanBatch = finalBatchCode.replace(/[^a-zA-Z0-9&]/g, '').toUpperCase();
     
