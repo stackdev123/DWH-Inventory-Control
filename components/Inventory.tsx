@@ -5,10 +5,12 @@ import {
   Search, Package, Box, AlertTriangle, RefreshCw, X, Tag, FileSpreadsheet, 
   ChevronRight, Info, ArrowUpRight, ArrowDownLeft, History as HistoryIcon, 
   Printer, AlertCircle, Layers, ShieldCheck, Eye, Settings2, Plus, Minus, 
-  ScanLine, User as UserIcon, Activity, Truck, Database, Clock, Calendar, Hash, FileText
+  ScanLine, User as UserIcon, Activity, Truck, Database, Clock, Calendar, Hash, FileText,
+  TrendingDown, Timer
 } from 'lucide-react';
 import StockOpname from './StockOpname';
 import MasterData from './MasterData';
+import LabelPreview from './LabelPreview';
 import { db } from '../services/database';
 import * as XLSX from 'xlsx';
 import CameraScanner from './CameraScanner';
@@ -32,6 +34,8 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
   const [showScanner, setShowScanner] = useState(false);
   const [scannedUnit, setScannedUnit] = useState<{ item: StockItem; logs: LogEntry[] } | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+
+  const [previewSticker, setPreviewSticker] = useState<LabelData | null>(null);
 
   const [manageForm, setManageForm] = useState({ safetyStock: 0, adjustQty: 0, adjustNote: '' });
   const [isAdminSubmitting, setIsAdminSubmitting] = useState(false);
@@ -88,6 +92,33 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
     setScanError(`ID "${uniqueId}" tidak ditemukan.`);
     setTimeout(() => setScanError(null), 3000);
   };
+
+  // Logic Prediksi Habis Stok
+  const exhaustionData = useMemo(() => {
+    if (!selectedProduct) return null;
+    
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const outLogs = logs.filter(l => 
+      l.productName === selectedProduct.name && 
+      l.type === 'OUT' && 
+      l.timestamp >= thirtyDaysAgo
+    );
+
+    const totalOut = outLogs.reduce((acc, l) => acc + Math.abs(l.quantityChange || 0), 0);
+    const avgDailyOut = totalOut / 30;
+
+    if (avgDailyOut <= 0) return { avg: 0, daysLeft: Infinity, date: null };
+
+    const daysLeft = (selectedProduct.stockToday || 0) / avgDailyOut;
+    const depletionDate = new Date();
+    depletionDate.setDate(depletionDate.getDate() + Math.ceil(daysLeft));
+
+    return {
+      avg: avgDailyOut,
+      daysLeft: Math.ceil(daysLeft),
+      date: depletionDate.toISOString().split('T')[0]
+    };
+  }, [selectedProduct, logs]);
 
   const handleAdminUpdate = async () => {
     if (!selectedProduct || isAdminSubmitting) return;
@@ -202,7 +233,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
     const stock = p.stockToday || 0;
     const safety = p.safetyStock || 0;
     if (stock <= 0) return { label: 'HABIS', color: 'bg-red-600', text: 'text-white' };
-    if (stock <= safety) return { label: 'MENIPIS', color: 'bg-amber-500', text: 'text-white' };
+    if (stock <= safety) return { label: 'KRITIS', color: 'bg-amber-500', text: 'text-white' }; // Mengubah MENIPIS menjadi KRITIS
     return { label: 'AMAN', color: 'bg-emerald-500', text: 'text-white' };
   };
 
@@ -210,6 +241,20 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
     <div className="space-y-4 relative">
       {showScanner && (
         <CameraScanner onScan={handleScanCheck} onClose={() => setShowScanner(false)} stockItems={inventory} products={products} />
+      )}
+
+      {previewSticker && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="bg-white p-4 rounded-3xl shadow-2xl flex flex-col items-center gap-6">
+            <LabelPreview data={previewSticker} scale={0.8} className="shadow-lg border border-slate-300" />
+            <button 
+              onClick={() => setPreviewSticker(null)}
+              className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-widest active:scale-95"
+            >
+              TUTUP PREVIEW
+            </button>
+          </div>
+        </div>
       )}
 
       {scannedUnit && (
@@ -318,41 +363,65 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
 
         <div className="p-0">
           {viewMode === 'recap' ? (
-            <div className="overflow-x-auto">
-               <table className="w-full text-left text-[10px] border-collapse min-w-[600px]">
-                  <thead className="bg-slate-50 text-slate-500 font-black uppercase text-[8px] tracking-widest border-b border-slate-100">
-                    <tr>
-                      <th className="px-6 py-4">Identitas Produk</th>
-                      <th className="px-4 py-4 text-center">Unit</th>
-                      <th className="px-4 py-4 text-right bg-red-50/20 text-red-600">Stok</th>
-                      <th className="px-4 py-4 text-center">Status</th>
-                      <th className="px-6 py-4 text-center">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredRecap.map(p => (
-                      <tr key={p.id} className="hover:bg-slate-50/70 transition-all group">
-                        <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedProduct(p)}>
-                          <div className="font-black text-slate-900 uppercase text-[11px] leading-tight group-hover:text-red-600">{p.name}</div>
-                          <div className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-widest">{p.id}</div>
-                        </td>
-                        <td className="px-4 py-4 text-center font-bold text-slate-400 uppercase">{p.unit}</td>
-                        <td className="px-4 py-4 text-right bg-red-50/5"><span className="text-sm font-black text-slate-900">{p.stockToday?.toLocaleString() || 0}</span></td>
-                        <td className="px-4 py-4 text-center">
-                            <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest ${getStockStatus(p).color} ${getStockStatus(p).text}`}>
-                                {getStockStatus(p).label}
-                            </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                            <button onClick={() => setSelectedProduct(p)} className="p-2 text-slate-300 hover:text-slate-900 transition-all">
-                                <Eye size={18} />
-                            </button>
-                        </td>
+            <>
+              {/* Desktop View Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-left text-[10px] border-collapse min-w-[600px]">
+                    <thead className="bg-slate-50 text-slate-500 font-black uppercase text-[8px] tracking-widest border-b border-slate-100">
+                      <tr>
+                        <th className="px-6 py-4">Identitas Produk</th>
+                        <th className="px-4 py-4 text-center">Unit</th>
+                        <th className="px-4 py-4 text-right bg-red-50/20 text-red-600">Stok</th>
+                        <th className="px-4 py-4 text-center">Status</th>
+                        <th className="px-6 py-4 text-center">Aksi</th>
                       </tr>
-                    ))}
-                  </tbody>
-               </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredRecap.map(p => (
+                        <tr key={p.id} className="hover:bg-slate-50/70 transition-all group">
+                          <td className="px-6 py-4 cursor-pointer" onClick={() => setSelectedProduct(p)}>
+                            <div className="font-black text-slate-900 uppercase text-[11px] leading-tight group-hover:text-red-600">{p.name}</div>
+                            <div className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-widest">{p.id}</div>
+                          </td>
+                          <td className="px-4 py-4 text-center font-bold text-slate-400 uppercase">{p.unit}</td>
+                          <td className="px-4 py-4 text-right bg-red-50/5"><span className="text-sm font-black text-slate-900">{p.stockToday?.toLocaleString() || 0}</span></td>
+                          <td className="px-4 py-4 text-center">
+                              <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-widest ${getStockStatus(p).color} ${getStockStatus(p).text}`}>
+                                  {getStockStatus(p).label}
+                              </div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                              <button onClick={() => setSelectedProduct(p)} className="p-2 text-slate-300 hover:text-slate-900 transition-all">
+                                  <Eye size={18} />
+                              </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                </table>
+              </div>
+
+              {/* Mobile View List - Compact Version */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {filteredRecap.map(p => (
+                  <div key={p.id} onClick={() => setSelectedProduct(p)} className="p-4 flex justify-between items-center active:bg-slate-50 transition-colors">
+                    <div className="flex flex-col min-w-0 pr-4">
+                      <span className="text-[12px] font-black text-slate-800 uppercase truncate leading-tight">{p.name}</span>
+                      <span className="text-[8px] font-mono font-bold text-slate-400 uppercase tracking-widest mt-1">{p.id}</span>
+                    </div>
+                    <div className="text-right flex flex-col items-end shrink-0">
+                      <div className="text-[12px] font-black text-slate-900 leading-none">
+                        {p.stockToday?.toLocaleString() || 0} 
+                        <span className="text-[8px] text-slate-400 uppercase ml-1">{p.unit}</span>
+                      </div>
+                      <div className={`mt-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[6px] font-black uppercase tracking-widest ${getStockStatus(p).color} ${getStockStatus(p).text}`}>
+                        {getStockStatus(p).label}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : viewMode === 'opname' ? (
             <div className="p-4">
                {onBulkAdjust && <StockOpname products={products} inventory={inventory} currentUser={currentUser} onBulkAdjust={onBulkAdjust} onRefresh={onRefresh} />}
@@ -383,6 +452,34 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50">
+                {/* Analisis Konsumsi Cerdaas */}
+                <div className="m-4 p-5 bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl text-white shadow-xl flex flex-col md:flex-row gap-6">
+                    <div className="flex-1 flex flex-col justify-center">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><TrendingDown size={12} className="text-red-500" /> Analisis Kecepatan Konsumsi</span>
+                      <div className="flex items-end gap-3">
+                         <span className="text-3xl font-black">{exhaustionData?.avg.toFixed(2)}</span>
+                         <span className="text-[10px] font-bold text-slate-400 uppercase mb-2">{selectedProduct.unit} / Hari</span>
+                      </div>
+                      <p className="text-[9px] text-slate-500 font-bold mt-2 uppercase">Berdasarkan data keluar 30 hari terakhir</p>
+                    </div>
+
+                    <div className="w-px bg-white/10 hidden md:block"></div>
+
+                    <div className="flex-1 flex flex-col justify-center">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2"><Timer size={12} className="text-emerald-500" /> Perkiraan Habis Stok</span>
+                      <div className="flex items-end gap-3">
+                         <span className={`text-3xl font-black ${exhaustionData?.daysLeft && exhaustionData.daysLeft <= 7 ? 'text-red-500' : 'text-emerald-500'}`}>
+                           {exhaustionData?.date ? formatDateReadable(exhaustionData.date) : 'STABIL'}
+                         </span>
+                      </div>
+                      <p className="text-[10px] font-black text-slate-300 uppercase mt-2">
+                        {exhaustionData?.daysLeft && exhaustionData.daysLeft !== Infinity 
+                          ? `Ketahanan stok: ${exhaustionData.daysLeft} Hari` 
+                          : 'Penggunaan tidak terdeteksi (Aman)'}
+                      </p>
+                    </div>
+                </div>
+
                 <div className="bg-white p-4">
                   <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                     <button onClick={() => setDetailTab('batches')} className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${detailTab === 'batches' ? 'bg-white text-red-600 shadow-sm' : 'text-slate-400'}`}>
@@ -396,47 +493,76 @@ const Inventory: React.FC<InventoryProps> = ({ products, inventory, logs, curren
 
                 <div className="p-4">
                 {detailTab === 'batches' ? (
-                  <div className="space-y-2">
-                    {productBatches.length > 0 ? productBatches.map((item) => (
-                      <div key={item.uniqueId} className="bg-white p-3 rounded-2xl border border-slate-200 flex flex-col gap-2 group hover:border-red-400 transition-all shadow-sm">
-                        <div className="flex justify-between items-center">
-                           <div className="flex items-center gap-2">
-                             <div className="p-1.5 bg-slate-50 rounded-lg text-slate-400 group-hover:text-red-500 transition-colors border border-slate-100"><Tag size={12} /></div>
-                             <div className="flex flex-col">
-                               <span className="text-[10px] font-black text-slate-900 uppercase leading-none">{item.batchCode || 'GENERAL'}</span>
-                               <span className="text-[7px] font-mono font-bold text-slate-400 uppercase mt-0.5">{item.uniqueId.slice(-10)}</span>
+                  <div className="space-y-3">
+                    {productBatches.length > 0 ? productBatches.map((item) => {
+                      const batchLogs = logs.filter(l => l.stockItemId === item.uniqueId).sort((a,b) => b.timestamp - a.timestamp);
+                      const latestUser = batchLogs[0]?.user || 'SYSTEM';
+
+                      return (
+                        <div key={item.uniqueId} className="bg-white p-4 rounded-3xl border border-slate-200 flex flex-col gap-3 group hover:border-red-400 transition-all shadow-sm">
+                          <div className="flex justify-between items-start">
+                             <div className="flex items-center gap-3">
+                               <div className="p-2 bg-slate-50 rounded-xl text-slate-400 group-hover:text-red-500 transition-colors border border-slate-100"><Tag size={16} /></div>
+                               <div className="flex flex-col min-w-0">
+                                 <span className="text-[11px] font-black text-slate-900 uppercase leading-none">{item.batchCode || 'GENERAL'}</span>
+                                 <span className="text-[7px] font-mono font-bold text-slate-400 uppercase mt-1 tracking-widest truncate">{item.uniqueId.slice(-10)}</span>
+                               </div>
                              </div>
-                           </div>
-                           <div className="text-right">
-                             <div className="text-sm font-black text-slate-900">{item.quantity.toLocaleString()} <small className="text-[7px] uppercase text-slate-400">{selectedProduct.unit}</small></div>
-                           </div>
-                        </div>
+                             <div className="text-right">
+                               <div className="text-sm font-black text-slate-900">
+                                 {item.quantity.toLocaleString()} 
+                                 <span className="text-[8px] uppercase text-slate-400 ml-1 font-bold">{selectedProduct.unit}</span>
+                               </div>
+                             </div>
+                          </div>
 
-                        <div className="flex items-center gap-3 py-2 px-3 bg-slate-50 rounded-xl border border-slate-100">
-                           <div className="flex items-center gap-1 min-w-0">
-                              <Truck size={10} className="text-slate-300" />
-                              <span className="text-[8px] font-black text-slate-500 uppercase truncate">{item.supplier || '-'}</span>
-                           </div>
-                           <div className="w-px h-3 bg-slate-200"></div>
-                           <div className="flex items-center gap-1 whitespace-nowrap">
-                              <Calendar size={10} className="text-slate-300" />
-                              <span className="text-[8px] font-black text-slate-500 uppercase">{formatDateReadable(item.arrivalDate) || '-'}</span>
-                           </div>
-                           <div className="w-px h-3 bg-slate-200"></div>
-                           <div className="flex items-center gap-1 whitespace-nowrap min-w-0">
-                              <Clock size={10} className="text-slate-300" />
-                              <span className={`text-[8px] font-black uppercase ${item.expiryDate ? 'text-red-600' : 'text-slate-400'}`}>{item.expiryDate ? formatDateReadable(item.expiryDate) : 'NO EXP'}</span>
-                           </div>
-                        </div>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-2.5 px-3 bg-slate-50 rounded-2xl border border-slate-100">
+                             <div className="flex items-center gap-1.5 min-w-0">
+                                <UserIcon size={12} className="text-slate-300" />
+                                <span className="text-[8px] font-black text-slate-500 uppercase truncate">{latestUser}</span>
+                             </div>
+                             <div className="hidden sm:block w-px h-3 bg-slate-200"></div>
+                             <div className="flex items-center gap-1.5 whitespace-nowrap">
+                                <Calendar size={12} className="text-slate-300" />
+                                <span className="text-[8px] font-black text-slate-500 uppercase">{formatDateReadable(item.arrivalDate) || '-'}</span>
+                             </div>
+                             <div className="hidden sm:block w-px h-3 bg-slate-200"></div>
+                             <div className="flex items-center gap-1.5 whitespace-nowrap min-w-0">
+                                <Clock size={12} className="text-slate-300" />
+                                <span className={`text-[8px] font-black uppercase ${item.expiryDate ? 'text-red-600' : 'text-slate-400'}`}>
+                                  {item.expiryDate ? formatDateReadable(item.expiryDate) : 'NO EXP'}
+                                </span>
+                             </div>
+                          </div>
 
-                        {item.note && (
-                           <div className="flex items-center gap-2 px-3 py-2 bg-blue-50/50 rounded-xl border border-blue-100/50 mt-1">
-                              <FileText size={10} className="text-blue-400" />
-                              <span className="text-[8px] font-bold text-blue-600 italic truncate">{item.note}</span>
-                           </div>
-                        )}
-                      </div>
-                    )) : (
+                          <div className="flex items-center justify-between gap-2">
+                             {item.note && (
+                                <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-blue-50/50 rounded-xl border border-blue-100/50">
+                                   <FileText size={10} className="text-blue-400" />
+                                   <span className="text-[8px] font-bold text-blue-600 italic truncate">{item.note}</span>
+                                </div>
+                             )}
+                             <button 
+                                onClick={() => setPreviewSticker({
+                                  item: {
+                                    name: selectedProduct.name,
+                                    code: item.uniqueId,
+                                    batchCode: item.batchCode,
+                                    quantity: item.quantity,
+                                    unit: selectedProduct.unit
+                                  },
+                                  supplier: item.supplier,
+                                  arrivalDate: item.arrivalDate,
+                                  expiryDate: item.expiryDate
+                                })}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-white border border-slate-200 hover:border-red-500 text-slate-600 hover:text-red-600 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all active:scale-95 shrink-0"
+                             >
+                                <Printer size={12} /> Lihat Stiker
+                             </button>
+                          </div>
+                        </div>
+                      );
+                    }) : (
                       <div className="py-12 text-center text-slate-300 italic text-[9px] font-black uppercase flex flex-col items-center gap-2">
                         <Layers size={30} className="opacity-10" />
                         No data

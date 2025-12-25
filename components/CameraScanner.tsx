@@ -24,7 +24,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onScan, onClose, stockIte
   const [captureHistory, setCaptureHistory] = useState<Record<string, number>>({});
   const [currentTime, setCurrentTime] = useState(Date.now());
 
-  // Ukuran Box Scan Tetap (Presisi Simetris)
+  // Ukuran Box Scan Tetap
   const SCAN_SIZE = 240;
 
   const sanitizeId = (id: string) => id.trim().replace(/[^a-zA-Z0-9-&]/g, '').toUpperCase();
@@ -126,7 +126,8 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onScan, onClose, stockIte
         { facingMode: "environment" }, 
         { 
           fps: 30, 
-          qrbox: { width: SCAN_SIZE, height: SCAN_SIZE },
+          // HAPUS qrbox agar library melakukan scan di seluruh frame video
+          // Hal ini mencegah library merender kotak default-nya yang bertabrakan dengan UI kustom
           aspectRatio: 1.0
         }, 
         (text: string) => handleDetected(text), 
@@ -213,7 +214,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onScan, onClose, stockIte
            {/* Camera Preview Area */}
            <div id="reader" className="w-full flex-1 relative bg-black [&_video]:w-full [&_video]:h-full [&_video]:object-cover [&_canvas]:hidden"></div>
            
-           {/* Viewfinder - Perfectly Centered */}
+           {/* Viewfinder - Perfectly Adjusted Upwards */}
            <div className="absolute inset-0 pointer-events-none z-[50]">
               <div 
                 className={`relative rounded-3xl transition-all duration-300 shadow-[0_0_0_100vmax_rgba(0,0,0,0.65)] ${lastDetectedCandidate ? 'border-[3px] border-emerald-500' : 'border-2 border-white/20'}`}
@@ -221,7 +222,7 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onScan, onClose, stockIte
                   width: `${SCAN_SIZE}px`, 
                   height: `${SCAN_SIZE}px`,
                   position: 'absolute',
-                  top: '50%',
+                  top: '35%', // Disesuaikan lebih ke atas lagi sesuai feedback
                   left: '50%',
                   transform: 'translate(-50%, -50%)'
                 }}
@@ -296,6 +297,10 @@ const CameraScanner: React.FC<CameraScannerProps> = ({ onScan, onClose, stockIte
 
       <style>{`
         /* Sembunyikan elemen UI bawaan library html5-qrcode agar tidak tumpang tindih */
+        div[id^="reader__"] {
+          display: none !important;
+        }
+        
         #reader__shading-top, #reader__shading-bottom, #reader__shading-left, #reader__shading-right,
         #reader__border-top, #reader__border-bottom, #reader__border-left, #reader__border-right {
           display: none !important;

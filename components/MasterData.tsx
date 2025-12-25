@@ -279,38 +279,61 @@ const MasterData: React.FC<MasterDataProps> = ({ products, currentUser, onRefres
       </div>
 
       <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[9px] tracking-widest border-b border-slate-100">
-              <tr>
-                <th className="px-8 py-5">Kode</th>
-                <th className="px-8 py-5">Nama Produk</th>
-                <th className="px-8 py-5">Kategori</th>
-                <th className="px-8 py-5 text-center">Unit</th>
-                <th className="px-8 py-5 text-right">Safety Stock</th>
-                <th className="px-8 py-5 text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map(p => (
-                <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
-                  <td className="px-8 py-5 font-mono font-black text-red-600">{p.id}</td>
-                  <td className="px-8 py-5 font-black text-slate-800 uppercase tracking-tight group-hover:text-red-600 transition-colors">{p.name}</td>
-                  <td className="px-8 py-5">
-                    <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{p.category}</span>
-                  </td>
-                  <td className="px-8 py-5 text-center font-bold text-slate-400 uppercase">{p.unit}</td>
-                  <td className="px-8 py-5 text-right font-black text-red-600">{p.safetyStock?.toLocaleString()}</td>
-                  <td className="px-8 py-5 text-center">
-                    <div className="flex justify-center gap-2">
-                      <button onClick={() => openEditModal(p)} className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Edit3 size={18} /></button>
-                      <button onClick={() => setDeleteConfirmId(p.id)} className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18} /></button>
-                    </div>
-                  </td>
+        <div className="overflow-hidden">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse">
+              <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[9px] tracking-widest border-b border-slate-100">
+                <tr>
+                  <th className="px-8 py-5">Kode</th>
+                  <th className="px-8 py-5">Nama Produk</th>
+                  <th className="px-8 py-5">Kategori</th>
+                  <th className="px-8 py-5 text-center">Unit</th>
+                  <th className="px-8 py-5 text-right">Safety Stock</th>
+                  <th className="px-8 py-5 text-center">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredProducts.map(p => (
+                  <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-8 py-5 font-mono font-black text-red-600">{p.id}</td>
+                    <td className="px-8 py-5 font-black text-slate-800 uppercase tracking-tight group-hover:text-red-600 transition-colors">{p.name}</td>
+                    <td className="px-8 py-5">
+                      <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">{p.category}</span>
+                    </td>
+                    <td className="px-8 py-5 text-center font-bold text-slate-400 uppercase">{p.unit}</td>
+                    <td className="px-8 py-5 text-right font-black text-red-600">{p.safetyStock?.toLocaleString()}</td>
+                    <td className="px-8 py-5 text-center">
+                      <div className="flex justify-center gap-2">
+                        <button onClick={() => openEditModal(p)} className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Edit3 size={18} /></button>
+                        <button onClick={() => setDeleteConfirmId(p.id)} className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={18} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile List View - Compact */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredProducts.map(p => (
+              <div key={p.id} className="p-4 flex justify-between items-center active:bg-slate-50 transition-colors">
+                <div className="flex flex-col min-w-0 pr-4" onClick={() => openEditModal(p)}>
+                  <span className="text-[12px] font-black text-slate-800 uppercase truncate leading-tight">{p.name}</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[8px] font-mono font-bold text-red-600 uppercase tracking-widest">{p.id}</span>
+                    <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded-full">{p.category}</span>
+                  </div>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button onClick={() => openEditModal(p)} className="p-2 text-slate-300 hover:text-blue-600 transition-all"><Edit3 size={16} /></button>
+                  <button onClick={() => setDeleteConfirmId(p.id)} className="p-2 text-slate-300 hover:text-red-600 transition-all"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+
           {filteredProducts.length === 0 && (
             <div className="p-20 text-center text-slate-400 italic font-black uppercase tracking-widest opacity-20">Tidak ada produk ditemukan.</div>
           )}

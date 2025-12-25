@@ -10,6 +10,7 @@ import SearchableSelect from './SearchableSelect';
 import { db } from '../services/database';
 import { toJpeg } from 'html-to-image';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
 
 interface HistoryProps {
   logs: LogEntry[];
@@ -35,7 +36,9 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
   const [selectedProductId, setSelectedProductId] = useState<string>('');
 
   const reportRef = useRef<HTMLDivElement>(null);
+  const reportExportRef = useRef<HTMLDivElement>(null);
   const stockCardRef = useRef<HTMLDivElement>(null);
+  const stockCardExportRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadImage = async (ref: React.RefObject<HTMLDivElement>, filename: string) => {
     if (!ref.current) return;
@@ -54,6 +57,44 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
     }
   };
 
+  const handleDownloadPDF = async (ref: React.RefObject<HTMLDivElement>, filename: string) => {
+    if (!ref.current) return;
+    try {
+      const dataUrl = await toJpeg(ref.current, {
+        quality: 0.95,
+        pixelRatio: 2,
+        backgroundColor: '#ffffff',
+      });
+      
+      const imgWidth = ref.current.offsetWidth;
+      const imgHeight = ref.current.offsetHeight;
+      
+      const pdf = new jsPDF({
+        orientation: imgWidth > imgHeight ? 'l' : 'p',
+        unit: 'px',
+        format: [imgWidth, imgHeight]
+      });
+      
+      pdf.addImage(dataUrl, 'JPEG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`${filename}.pdf`);
+    } catch (err) {
+      console.error('Failed to download PDF', err);
+    }
+  };
+
+  const formatDateReadable = (dateStr: string) => {
+    if (!dateStr || dateStr === 'System' || dateStr === 'Migration') return dateStr;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+      return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
   const filterStartTs = useMemo(() => new Date(startDate).setHours(0,0,0,0), [startDate]);
   const filterEndTs = useMemo(() => new Date(endDate).setHours(23,59,59,999), [endDate]);
 
@@ -63,7 +104,6 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
     return map;
   }, [products]);
 
-  // Helper to determine if a log is a system migration/conversion log
   const isMigrationLog = (log: LogEntry) => {
     const note = (log.note || '').toLowerCase();
     return log.stockItemId === 'SYSTEM-MIGRATION' || note.includes('migrasi:') || note.includes('konversi saldo lama');
@@ -98,7 +138,6 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
     if (!prod) return null;
 
     const targetName = prod.name.toLowerCase().trim();
-    // EXCLUDE MIGRATION LOGS from running balance calculation for clear card visibility
     const pLogs = logs
       .filter(l => l.productName.toLowerCase().trim() === targetName && !isMigrationLog(l))
       .sort((a, b) => a.timestamp - b.timestamp);
@@ -125,9 +164,7 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
   const filteredLogs = useMemo(() => {
     const search = (searchTerm || '').toLowerCase();
     return logs.filter(l => {
-      // EXCLUDE MIGRATION LOGS from the main buku mutasi list as requested
       if (isMigrationLog(l)) return false;
-      
       const matchSearch = (l.productName || '').toLowerCase().includes(search) || 
                          (l.recipient && l.recipient.toLowerCase().includes(search)) ||
                          (l.user && l.user.toLowerCase().includes(search));
@@ -151,14 +188,18 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
     
     const data = [
       { 'Waktu': '-', 'Tipe': 'SALDO AWAL', 'Keterangan': 'Saldo Sebelum Periode', 'Mutasi': 0, 'Saldo Akhir': stockCardData.openingBalance, 'Petugas': '-' },
-      ...stockCardData.mutations.map(l => ({
-        'Waktu': formatDateTimeFull(l.timestamp),
-        'Tipe': l.type,
-        'Penerima/Note': l.recipient || l.note || '-',
-        'Mutasi': l.quantityChange,
-        'Saldo Akhir': l.balanceAfter,
-        'Petugas': l.user || '-'
-      }))
+      ...stockCardData.mutations.map(l => {
+        const itemInfo = stock.find(s => s.uniqueId === l.stockItemId);
+        const extraInfo = itemInfo ? ` [Batch: ${itemInfo.batchCode || '-'}, In: ${itemInfo.arrivalDate}, Exp: ${itemInfo.expiryDate || '-'}]` : '';
+        return {
+          'Waktu': formatDateTimeFull(l.timestamp),
+          'Tipe': l.type,
+          'Penerima/Note': (l.recipient || l.note || '-') + extraInfo,
+          'Mutasi': l.quantityChange,
+          'Saldo Akhir': l.balanceAfter,
+          'Petugas': l.user || '-'
+        };
+      })
     ];
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -236,16 +277,51 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
              <button onClick={downloadRekapExcel} className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-emerald-50">
                 <FileSpreadsheet size={16} /> XLSX
              </button>
-             <button onClick={() => handleDownloadImage(reportRef, `Rekap_Mutasi_${startDate}_${endDate}`)} className="bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-slate-200">
+             <button onClick={() => handleDownloadImage(reportExportRef, `Rekap_Mutasi_${startDate}_${endDate}`)} className="bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-slate-200">
                 <FileImage size={16} /> JPG
              </button>
+             <button onClick={() => handleDownloadPDF(reportExportRef, `Rekap_Mutasi_${startDate}_${endDate}`)} className="bg-red-800 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-red-900/20">
+                <FileText size={16} /> PDF
+             </button>
           </div>
+          
+          <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+            <div ref={reportExportRef} className="bg-white p-12 w-[1000px] border border-slate-200">
+               <div className="text-center mb-8">
+                  <h2 className="text-3xl font-black uppercase tracking-tighter">Rekapitulasi Mutasi Barang</h2>
+                  <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-2">Periode: {startDate} s/d {endDate}</p>
+               </div>
+               <table className="w-full text-center text-xs border-collapse border border-slate-900">
+                    <thead>
+                      <tr className="bg-slate-50 font-black text-slate-900 border-b-2 border-slate-900 uppercase">
+                        <th className="border border-slate-900 px-4 py-4 w-[100px]">Kode</th>
+                        <th className="border border-slate-900 px-4 py-4 text-left">Produk</th>
+                        <th className="border border-slate-900 px-4 py-4 w-[80px]">Unit</th>
+                        <th className="border border-slate-900 px-4 py-4 w-[120px]">Opening</th>
+                        <th className="border border-slate-900 px-4 py-4 w-[120px]">In</th>
+                        <th className="border border-slate-900 px-4 py-4 w-[120px]">Out</th>
+                        <th className="border border-slate-900 px-4 py-4 w-[130px] bg-slate-50">Closing</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reportData.map((row) => (
+                          <tr key={row.code}>
+                            <td className="border border-slate-900 px-4 py-3 font-mono font-bold">{row.code}</td>
+                            <td className="border border-slate-900 px-4 py-3 text-left font-black uppercase truncate">{row.name}</td>
+                            <td className="border border-slate-900 px-4 py-3 font-bold text-slate-400">{row.uom}</td>
+                            <td className="border border-slate-900 px-4 py-3 font-black">{row.openingStock.toLocaleString()}</td>
+                            <td className="border border-slate-900 px-4 py-3 font-black text-emerald-600">{row.inRange > 0 ? row.inRange.toLocaleString() : '-'}</td>
+                            <td className="border border-slate-900 px-4 py-3 font-black text-red-600">{row.outRange > 0 ? row.outRange.toLocaleString() : '-'}</td>
+                            <td className="border border-slate-900 px-4 py-3 font-black bg-slate-50/50">{row.stockEnd.toLocaleString()}</td>
+                          </tr>
+                      ))}
+                    </tbody>
+               </table>
+            </div>
+          </div>
+
           <div ref={reportRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-             <div className="text-center mb-6">
-                <h2 className="text-xl font-black uppercase tracking-tighter">Rekapitulasi Mutasi Barang</h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Periode: {startDate} s/d {endDate}</p>
-             </div>
-             <div className="overflow-x-auto">
+             <div className="hidden md:block overflow-x-auto">
                <table className="w-full text-center text-[10px] border-collapse border border-slate-900 min-w-[700px]">
                     <thead>
                       <tr className="bg-slate-50 font-black text-slate-900 border-b-2 border-slate-900 uppercase">
@@ -273,6 +349,22 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
                     </tbody>
                </table>
              </div>
+             <div className="md:hidden divide-y divide-slate-100">
+                {reportData.map((row) => (
+                  <div key={row.code} className="py-4 flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="text-[11px] font-black text-slate-900 uppercase truncate leading-tight">{row.name}</span>
+                        <span className="text-[8px] font-mono font-bold text-red-600 uppercase tracking-widest mt-1">{row.code}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-[11px] font-black text-slate-900">{row.stockEnd.toLocaleString()}</div>
+                        <div className="text-[7px] text-slate-400 font-bold uppercase tracking-widest">{row.uom}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+             </div>
           </div>
         </div>
       ) : activeTab === 'stockCard' ? (
@@ -281,49 +373,90 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
               <button onClick={downloadStockCardExcel} disabled={!selectedProductId} className="bg-emerald-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-emerald-50 disabled:opacity-50">
                 <FileSpreadsheet size={16} /> XLSX
               </button>
-              <button onClick={() => handleDownloadImage(stockCardRef, `Kartu_Stok_${selectedProductId}`)} disabled={!selectedProductId} className="bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-slate-200 disabled:opacity-50">
+              <button onClick={() => handleDownloadImage(stockCardExportRef, `Kartu_Stok_${selectedProductId}`)} disabled={!selectedProductId} className="bg-slate-900 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-slate-200 disabled:opacity-50">
                 <FileImage size={16} /> JPG
+              </button>
+              <button onClick={() => handleDownloadPDF(stockCardExportRef, `Kartu_Stok_${selectedProductId}`)} disabled={!selectedProductId} className="bg-red-800 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest active:scale-95 shadow-lg shadow-red-900/20 disabled:opacity-50">
+                <FileText size={16} /> PDF
               </button>
            </div>
            
-           <div ref={stockCardRef} className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden p-6">
-              {selectedProductId && stockCardData ? (
-                <>
-                  <div className="text-center mb-6">
-                    <h2 className="text-xl font-black uppercase tracking-tighter">Kartu Stok Barang</h2>
-                    <p className="text-[12px] font-black text-red-600 uppercase tracking-widest mt-1">
-                      {products.find(p => p.id === selectedProductId)?.name}
-                    </p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">
-                      ID: {selectedProductId} • Periode: {startDate} s/d {endDate}
-                    </p>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-[11px] border-collapse min-w-[600px] border border-slate-200">
-                      <thead className="bg-slate-50 text-slate-900 font-black uppercase text-[9px] tracking-widest border-b-2 border-slate-900">
+           <div style={{ position: 'absolute', left: '-9999px', top: 0, pointerEvents: 'none' }}>
+              <div ref={stockCardExportRef} className="bg-white p-12 w-[1100px] border border-slate-200">
+                {selectedProductId && stockCardData && (
+                  <>
+                    <div className="text-center mb-8">
+                      <h2 className="text-3xl font-black uppercase tracking-tighter">Kartu Stok Barang</h2>
+                      <p className="text-xl font-black text-red-600 uppercase tracking-widest mt-2">{products.find(p => p.id === selectedProductId)?.name}</p>
+                    </div>
+                    <table className="w-full text-left text-xs border-collapse border border-slate-200">
+                      <thead className="bg-slate-50 text-slate-900 font-black uppercase tracking-widest border-b-2 border-slate-900">
                         <tr>
-                          <th className="px-4 py-3 border border-slate-200">Waktu</th>
-                          <th className="px-4 py-3 border border-slate-200 text-center">Tipe</th>
-                          <th className="px-4 py-3 border border-slate-200">Keterangan</th>
-                          <th className="px-4 py-3 border border-slate-200 text-right">Mutasi</th>
-                          <th className="px-4 py-3 border border-slate-200 text-right bg-slate-100">Saldo Akhir</th>
+                          <th className="px-5 py-4 border border-slate-200">Waktu</th>
+                          <th className="px-5 py-4 border border-slate-200 text-center">Tipe</th>
+                          <th className="px-5 py-4 border border-slate-200">Keterangan</th>
+                          <th className="px-5 py-4 border border-slate-200 text-right">Mutasi</th>
+                          <th className="px-5 py-4 border border-slate-200 text-right bg-slate-100">Saldo Akhir</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody>
                         <tr className="bg-blue-50/30">
-                          <td className="px-4 py-3 border border-slate-200 font-bold text-slate-400 italic">-</td>
-                          <td className="px-4 py-3 border border-slate-200 text-center">
-                            <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase border bg-blue-50 text-blue-600 border-blue-100">SALDO AWAL</span>
-                          </td>
-                          <td className="px-4 py-3 border border-slate-200 text-slate-400 font-bold italic">Akumulasi sebelum {startDate}</td>
-                          <td className="px-4 py-3 border border-slate-200 text-right font-black text-slate-300">-</td>
-                          <td className="px-4 py-3 border border-slate-200 text-right font-black bg-blue-50/50">
-                            {stockCardData.openingBalance?.toLocaleString()}
-                          </td>
+                          <td className="px-5 py-3 border border-slate-200 font-bold text-slate-400 italic">-</td>
+                          <td className="px-5 py-3 border border-slate-200 text-center"><span className="px-2 py-0.5 rounded text-[8px] font-black uppercase border bg-blue-50 text-blue-600 border-blue-100">SALDO AWAL</span></td>
+                          <td className="px-5 py-3 border border-slate-200 text-slate-400 font-bold italic">Akumulasi sebelum {startDate}</td>
+                          <td className="px-5 py-3 border border-slate-200 text-right font-black text-slate-300">-</td>
+                          <td className="px-5 py-3 border border-slate-200 text-right font-black bg-blue-50/50">{stockCardData.openingBalance?.toLocaleString()}</td>
                         </tr>
+                        {stockCardData.mutations.map((log) => {
+                          const itemInfo = stock.find(s => s.uniqueId === log.stockItemId);
+                          return (
+                            <tr key={log.id}>
+                              <td className="px-5 py-3 border border-slate-200 font-bold text-slate-500">{formatDateTimeFull(log.timestamp)}</td>
+                              <td className="px-5 py-3 border border-slate-200 text-center">
+                                <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${log.type === 'IN' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : log.type === 'OUT' ? 'bg-red-50 text-red-600 border-red-100' : log.type === 'CREATE' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                  {log.type}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3 border border-slate-200 text-slate-600 font-bold">
+                                <div>{log.recipient ? `Penerima: ${log.recipient}` : log.note || '-'}</div>
+                                {itemInfo && <div className="text-[10px] text-slate-400 font-normal mt-0.5">Batch: {itemInfo.batchCode || '-'} • In: {itemInfo.arrivalDate} {itemInfo.expiryDate ? `• Exp: ${itemInfo.expiryDate}` : ''}</div>}
+                              </td>
+                              <td className={`px-5 py-3 border border-slate-200 text-right font-black ${Number(log.quantityChange)! > 0 ? 'text-emerald-600' : Number(log.quantityChange)! < 0 ? 'text-red-600' : 'text-slate-400'}`}>{Number(log.quantityChange)! > 0 ? `+${log.quantityChange.toLocaleString()}` : log.quantityChange === 0 ? '0' : log.quantityChange?.toLocaleString()}</td>
+                              <td className="px-5 py-3 border border-slate-200 text-right font-black bg-slate-50">{log.balanceAfter?.toLocaleString()}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </div>
+           </div>
 
-                        {stockCardData.mutations.map((log) => (
+           <div ref={stockCardRef} className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden p-6">
+              {selectedProductId && stockCardData ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-[11px] border-collapse min-w-[600px] border border-slate-200">
+                    <thead className="bg-slate-50 text-slate-900 font-black uppercase text-[9px] tracking-widest border-b-2 border-slate-900">
+                      <tr>
+                        <th className="px-4 py-3 border border-slate-200">Waktu</th>
+                        <th className="px-4 py-3 border border-slate-200 text-center">Tipe</th>
+                        <th className="px-4 py-3 border border-slate-200">Keterangan</th>
+                        <th className="px-4 py-3 border border-slate-200 text-right">Mutasi</th>
+                        <th className="px-4 py-3 border border-slate-200 text-right bg-slate-100">Saldo Akhir</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr className="bg-blue-50/30">
+                        <td className="px-4 py-3 border border-slate-200 font-bold text-slate-400 italic">-</td>
+                        <td className="px-4 py-3 border border-slate-200 text-center"><span className="px-2 py-0.5 rounded text-[8px] font-black uppercase border bg-blue-50 text-blue-600 border-blue-100">SALDO AWAL</span></td>
+                        <td className="px-4 py-3 border border-slate-200 text-slate-400 font-bold italic">Saldo s/d {startDate}</td>
+                        <td className="px-4 py-3 border border-slate-200 text-right font-black text-slate-300">-</td>
+                        <td className="px-4 py-3 border border-slate-200 text-right font-black bg-blue-50/50">{stockCardData.openingBalance?.toLocaleString()}</td>
+                      </tr>
+                      {stockCardData.mutations.map((log) => {
+                        const itemInfo = stock.find(s => s.uniqueId === log.stockItemId);
+                        return (
                           <tr key={log.id} className="hover:bg-slate-50/50 transition-colors">
                             <td className="px-4 py-3 border border-slate-200 font-bold text-slate-500">{formatDateTimeFull(log.timestamp)}</td>
                             <td className="px-4 py-3 border border-slate-200 text-center">
@@ -332,31 +465,21 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
                               </span>
                             </td>
                             <td className="px-4 py-3 border border-slate-200 text-slate-600 font-bold">
-                              {log.recipient ? `Penerima: ${log.recipient}` : log.note || '-'}
+                              <div>{log.recipient ? `Penerima: ${log.recipient}` : log.note || '-'}</div>
+                              {itemInfo && <div className="text-[9px] text-slate-400 font-normal mt-0.5">Batch: {itemInfo.batchCode || '-'} • In: {formatDateReadable(itemInfo.arrivalDate)} {itemInfo.expiryDate ? `• Exp: ${formatDateReadable(itemInfo.expiryDate)}` : ''}</div>}
                             </td>
-                            <td className={`px-4 py-3 border border-slate-200 text-right font-black ${Number(log.quantityChange)! > 0 ? 'text-emerald-600' : Number(log.quantityChange)! < 0 ? 'text-red-600' : 'text-slate-400'}`}>
-                              {Number(log.quantityChange)! > 0 ? `+${log.quantityChange.toLocaleString()}` : log.quantityChange === 0 ? '0' : log.quantityChange?.toLocaleString()}
-                            </td>
-                            <td className="px-4 py-3 border border-slate-200 text-right font-black bg-slate-50">
-                              {log.balanceAfter?.toLocaleString()}
-                            </td>
+                            <td className={`px-4 py-3 border border-slate-200 text-right font-black ${Number(log.quantityChange)! > 0 ? 'text-emerald-600' : Number(log.quantityChange)! < 0 ? 'text-red-600' : 'text-slate-400'}`}>{Number(log.quantityChange)! > 0 ? `+${log.quantityChange.toLocaleString()}` : log.quantityChange === 0 ? '0' : log.quantityChange?.toLocaleString()}</td>
+                            <td className="px-4 py-3 border border-slate-200 text-right font-black bg-slate-50">{log.balanceAfter?.toLocaleString()}</td>
                           </tr>
-                        ))}
-                        {stockCardData.mutations.length === 0 && (
-                          <tr>
-                            <td colSpan={5} className="py-20 text-center text-slate-300 italic">
-                               Belum ada mutasi baru pada periode terpilih. Saldo tetap dari awal periode.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="py-20 text-center text-slate-300 flex flex-col items-center gap-3">
                    <Tag size={40} className="opacity-20" />
-                   <span className="font-black uppercase tracking-widest text-[10px]">Silahkan pilih produk terlebih dahulu</span>
+                   <span className="font-black uppercase tracking-widest text-[10px]">Pilih produk kartu stok</span>
                 </div>
               )}
            </div>
@@ -394,11 +517,6 @@ const History: React.FC<HistoryProps> = ({ logs, products, stock, currentUser, o
                     ))}
                   </tbody>
                 </table>
-                {filteredLogs.length === 0 && (
-                  <div className="py-20 text-center text-slate-300 italic">
-                    Tidak ada riwayat transaksi dalam 30 entri terakhir untuk filter ini.
-                  </div>
-                )}
              </div>
         </div>
       )}

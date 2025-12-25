@@ -71,7 +71,14 @@ const About: React.FC = () => {
          </div>
       </div>
 
-      <p className="text-center text-[9px] font-black text-slate-300 uppercase tracking-[0.3em] py-10">© 2025 BOUNTY SEGAR INDONESIA — MANAGEMENT SYSTEM</p>
+      <div className="flex flex-col items-center py-6 opacity-60">
+        <p className="text-center text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">
+          Developed by
+        </p>
+        <p className="text-center text-[9px] font-black text-slate-600 uppercase tracking-widest mt-1">
+          Habib Dwi Prajoto • Raffly Pasya Trenadhi
+        </p>
+      </div>
     </div>
   );
 };
